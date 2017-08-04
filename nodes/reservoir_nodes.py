@@ -309,10 +309,9 @@ class ReservoirNode(mdp.Node):
 
         # Non-linear function
         nonlinear_function_pointer = self.nonlin_func
-        print(u"compute state")
+
         # Loop over the input data and compute the reservoir states
         for n in range(steps):
-            print(n)
             if type(x) is sp.csr_matrix:
                 if not type(self.w_in) is sp.csr_matrix:
                     states[n + 1, :] = nonlinear_function_pointer(
