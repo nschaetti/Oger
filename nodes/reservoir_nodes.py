@@ -60,7 +60,7 @@ class ReservoirNode(mdp.Node):
         super(ReservoirNode, self).__init__(input_dim=input_dim, output_dim=output_dim, dtype=dtype)
 
         # Logging
-        self.logging = logging.getLogger(name=u"Oger")
+        self.logger = logging.getLogger(name=u"Oger")
 
         # Set all object attributes
         # Scaling for input weight matrix
@@ -141,7 +141,7 @@ class ReservoirNode(mdp.Node):
         The weight matrices are created either at instantiation (if input_dim and output_dim are
         both given to the constructor), or during the first call to execute.
         """
-        logging.debug(u"Initializing ReservoirNode")
+        self.logger.debug(u"Initializing ReservoirNode")
 
         if self.input_dim is None:
             raise mdp.NodeException('Cannot initialize weight matrices: input_dim is not set.')
@@ -165,7 +165,7 @@ class ReservoirNode(mdp.Node):
                                                                             self.input_set)))
                 # Use sparse matrix
                 if self.use_sparse_matrix:
-                    logging.debug(u"Transforming W_in to sparse matrix representation")
+                    self.logger.debug(u"Transforming W_in to sparse matrix representation")
                     self.w_in = sp.csr_matrix(self.w_in)
                 # end if
             # end if
@@ -180,7 +180,7 @@ class ReservoirNode(mdp.Node):
         # end if
 
         # Logging info on W_in
-        logging.debug(u"Matrix W_in initialized with shape {}".format(self.w_in.shape))
+        self.logger.debug(u"Matrix W_in initialized with shape {}".format(self.w_in.shape))
         
         # Check if dimensions of the weight matrix match the dimensions of the node inputs and outputs
         if self.w_in.shape != (self.output_dim, self.input_dim):
@@ -205,7 +205,7 @@ class ReservoirNode(mdp.Node):
         # end if
 
         # Debug info on W_bias
-        logging.debug(u"Matrix W_bias initialized with shape {}".format(self.w_bias.shape))
+        self.logger.debug(u"Matrix W_bias initialized with shape {}".format(self.w_bias.shape))
 
         # Check if dimensions of the weight matrix match the dimensions of the node inputs and outputs
         if self.w_bias.shape != (1, self.output_dim):
@@ -243,7 +243,7 @@ class ReservoirNode(mdp.Node):
         # end if
 
         # Debug info on W_bias
-        logging.debug(u"Matrix W initialized with shape {}".format(self.w.shape))
+        self.logger.debug(u"Matrix W initialized with shape {}".format(self.w.shape))
         
         # Check if dimensions of the weight matrix match the dimensions of the node inputs and outputs
         if self.w.shape != (self.output_dim, self.output_dim):
@@ -292,8 +292,10 @@ class ReservoirNode(mdp.Node):
             self.initial_state = mdp.numx.atleast_2d(self.states[-1, :])
         # end if
 
+        # Variables
         steps = x.shape[0]
         states = []
+
         # Pre-allocate the state vector, adding the initial state
         try:
             states = mdp.numx.concatenate((self.initial_state, mdp.numx.zeros((steps, self.output_dim))))
@@ -301,13 +303,27 @@ class ReservoirNode(mdp.Node):
             print "Memory Error"
             print e
             exit()
+        # end try
 
+        # Non-linear function
         nonlinear_function_pointer = self.nonlin_func
 
         # Loop over the input data and compute the reservoir states
         for n in range(steps):
-            states[n + 1, :] = nonlinear_function_pointer(mdp.numx.dot(self.w, states[n, :]) + mdp.numx.dot(self.w_in, x[n, :]) + self.w_bias)
+            if type(x) is sp.csr_matrix:
+                if not type(self.w_in) is sp.csr_matrix:
+                    states[n + 1, :] = nonlinear_function_pointer(
+                        mdp.numx.dot(self.w, states[n, :]) + mdp.numx.dot(self.w_in, x[n, :].transpose()) + self.w_bias)
+                else:
+                    states[n + 1, :] = nonlinear_function_pointer(
+                        mdp.numx.dot(self.w, states[n, :]) + self.w_in.multiply(x[n, :].transpose()) + self.w_bias)
+                # end if
+            else:
+                states[n + 1, :] = nonlinear_function_pointer(
+                    mdp.numx.dot(self.w, states[n, :]) + mdp.numx.dot(self.w_in, x[n, :]) + self.w_bias)
+            # end if
             self._post_update_hook(states, x, n)
+        # end for
 
         # Save the state for re-initialization in case reset_states = False
         self.states = states[1:, :]

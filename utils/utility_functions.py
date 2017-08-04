@@ -1,17 +1,27 @@
 import mdp
 import itertools
 import scipy.signal
+from scipy.sparse import csr_matrix
+from scipy.sparse.linalg import eigs
 import numpy as np
 
-## Utility functions
+# Utility functions
 
+
+# Get spectral radius
 def get_spectral_radius(W):
     """
     get_spectral_radius(W)-> spec_rad
-    Return the spectral radius (largest absolute eigenvalue) of the matrix W
-    
+    :param W: matrix W
+    :return: the spectral radius (largest absolute eigenvalue) of the matrix W
     """
-    return mdp.numx.amax(mdp.numx.absolute(mdp.numx.linalg.eigvals(W))) 
+    if type(W) is csr_matrix:
+        w, _ = eigs(W)
+        return mdp.numx.amax(mdp.numx.absolute(w))
+    else:
+        return mdp.numx.amax(mdp.numx.absolute(mdp.numx.linalg.eigvals(W)))
+    # end if
+# end get_spectral_radius
 
 def empty_n_d_list(dims):
     ''' Create an n-dimensional list (n = len(dims)), of sizes given by the tuple dims
