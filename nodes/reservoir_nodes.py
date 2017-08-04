@@ -2,12 +2,13 @@ import Oger
 import mdp.utils
 import numpy as np
 import collections
-import matplotlib.pyplot as plt
+import scipy.sparse as sp
 import matplotlib.cm as cm
+import logging
 try:
-	import cudamat as cm
+    import cudamat as cm
 except:
-	pass
+    pass
 
 # TODO: MDP parallelization assumes that nodes are state-less when executing! The current ReservoirNode
 # does not adhere to this and therefor are not parallelizable. A solution is to make the state local. 
@@ -17,14 +18,24 @@ except:
 
 # TODO: leaky neuron is also broken when parallel! 
 
+
+#########################################
+# ReservoirNode
+#########################################
 class ReservoirNode(mdp.Node):
     """
     A standard (ESN) reservoir node.
     """
 
+    # Variables
+    states = []
+    initial_state = []
+
+    # Constructor
     def __init__(self, input_dim=None, output_dim=None, spectral_radius=0.9,
                  nonlin_func=np.tanh, reset_states=True, bias_scaling=0, input_scaling=1, dtype='float64', _instance=0,
-                 w_in=None, w=None, w_bias=None, sparsity = None, input_set = [1.0,-1.0], w_sparsity = None, set_initial_state = False, my_initial_state = None):
+                 w_in=None, w=None, w_bias=None, sparsity=None, input_set=[1.0, -1.0], w_sparsity=None,
+                 set_initial_state=False, my_initial_state=None, use_sparse_matrix=False):
         """ Initializes and constructs a random reservoir.
         Parameters are:
             - input_dim: input dimensionality
@@ -34,6 +45,7 @@ class ReservoirNode(mdp.Node):
             - input_scaling: scaling of the input weight matrix, default: 1
             - spectral_radius: scaling of the reservoir weight matrix, default value: 0.9
             - reset_states: should the reservoir states be reset to zero at each call of execute? Default True, set to False for use in FeedbackFlow
+            - use_sparse_matrix: Use sparse matrix for Win and W?
         
         Weight matrices are either generated randomly or passed at construction time.
         if w, w_in or w_bias are not given in the constructor, they are created randomly:
@@ -46,6 +58,9 @@ class ReservoirNode(mdp.Node):
         this Node type is not parallelizable using threads.
         """
         super(ReservoirNode, self).__init__(input_dim=input_dim, output_dim=output_dim, dtype=dtype)
+
+        # Logging
+        self.logging = logging.getLogger(name=u"Oger")
 
         # Set all object attributes
         # Scaling for input weight matrix
@@ -60,12 +75,13 @@ class ReservoirNode(mdp.Node):
         # Non-linear function
         self.nonlin_func = nonlin_func
         
-        # Parametre en plus
+        # Additional parameters
         self.sparsity = sparsity
         self.input_set = input_set
         self.w_sparsity = w_sparsity
         self.set_initial_state = set_initial_state
         self.my_initial_state = my_initial_state
+        self.use_sparse_matrix = use_sparse_matrix
 
         # Store any externally passed initialization values for w, w_in and w_bias
         self.w_in_initial = w_in
@@ -85,13 +101,15 @@ class ReservoirNode(mdp.Node):
         if input_dim is not None and output_dim is not None:
             # Call the initialize function to create the weight matrices
             self.initialize()
-
+        # end if
+    # end __init__
 
     # Override the standard output_dim getter and setter property, 
     # to enable changing the output_dim (i.e. the number
     # of neurons) afterwards during optimization
     def get_output_dim(self): 
         return self._output_dim
+    # end get_output_dim
 
     def set_output_dim(self, value): 
         self._output_dim = value
@@ -99,9 +117,11 @@ class ReservoirNode(mdp.Node):
 
     def is_trainable(self):
         return False
+    # end is_trainable
 
     def is_invertible(self):
         return False
+    # end is_invertible
 
     def initialize(self):
         """ Initialize the weight matrices of the reservoir node. If no
@@ -121,26 +141,46 @@ class ReservoirNode(mdp.Node):
         The weight matrices are created either at instantiation (if input_dim and output_dim are
         both given to the constructor), or during the first call to execute.
         """
+        logging.debug(u"Initializing ReservoirNode")
+
         if self.input_dim is None:
             raise mdp.NodeException('Cannot initialize weight matrices: input_dim is not set.')
+        # end if
 
         if self.output_dim is None:
             raise mdp.NodeException('Cannot initialize weight matrices: output_dim is not set.')
+        # end if
 
         # Initialize input weight matrix
         if self.w_in_initial is None:
-            if self.sparsity == None:
+            if self.sparsity is None:
                 # Initialize it to uniform random values using input_scaling
                 self.w_in = self.input_scaling * (mdp.numx.random.randint(0, 2, (self.output_dim, self.input_dim)) * 2 - 1)
             else:
                 # Initialize it to uniform random value using sparsity and input set
-                self.w_in = self.input_scaling * mdp.numx.random.choice(mdp.numx.append([0],self.input_set),(self.output_dim, self.input_dim),p=np.append([1.0-self.sparsity],[self.sparsity/len(self.input_set)]*len(self.input_set)))
-                #self.w_in = mdp.numx.random.choice(mdp.numx.append([0],),(self.output_dim, self.input_dim),p=np.append([1.0-self.sparsity],[self.sparsity/len(self.input_set)]*len(self.input_set)))
+                self.w_in = self.input_scaling * mdp.numx.random.choice(mdp.numx.append([0], self.input_set),
+                                                                        (self.output_dim, self.input_dim),
+                                                                        p=np.append([1.0 - self.sparsity], [
+                                                                            self.sparsity / len(self.input_set)] * len(
+                                                                            self.input_set)))
+                # Use sparse matrix
+                if self.use_sparse_matrix:
+                    logging.debug(u"Transforming W_in to sparse matrix representation")
+                    self.w_in = sp.csr_matrix(self.w_in)
+                # end if
+            # end if
         else:
             if callable(self.w_in_initial):
-                self.w_in = self.w_in_initial(self.output_dim, self.input_dim) # If it is a function, call it
+                # If it is a function, call it
+                self.w_in = self.w_in_initial(self.output_dim, self.input_dim)
             else:
-                self.w_in = self.w_in_initial.copy() # else just copy it
+                # else just copy it
+                self.w_in = self.w_in_initial.copy()
+            # end if
+        # end if
+
+        # Logging info on W_in
+        logging.debug(u"Matrix W_in initialized with shape {}".format(self.w_in.shape))
         
         # Check if dimensions of the weight matrix match the dimensions of the node inputs and outputs
         if self.w_in.shape != (self.output_dim, self.input_dim):
@@ -148,6 +188,7 @@ class ReservoirNode(mdp.Node):
             exception_str += 'Input dim: ' + str(self.input_dim) + ', output dim: ' + str(self.output_dim) + '. '
             exception_str += 'Shape of w_in: ' + str(self.w_in.shape)
             raise mdp.NodeException(exception_str)
+        # end if
 
         # Initialize bias weight matrix
         if self.w_bias_initial is None:
@@ -155,9 +196,16 @@ class ReservoirNode(mdp.Node):
             self.w_bias = self.bias_scaling * (mdp.numx.random.rand(1, self.output_dim) * 2 - 1)
         else:
             if callable(self.w_bias_initial):
-                self.w_bias = self.w_bias_initial(self.output_dim) # If it is a function, call it
+                # If it is a function, call it
+                self.w_bias = self.w_bias_initial(self.output_dim)
             else:
-                self.w_bias = self.w_bias_initial.copy()   # else just copy it
+                # else just copy it
+                self.w_bias = self.w_bias_initial.copy()
+            # end if
+        # end if
+
+        # Debug info on W_bias
+        logging.debug(u"Matrix W_bias initialized with shape {}".format(self.w_bias.shape))
 
         # Check if dimensions of the weight matrix match the dimensions of the node inputs and outputs
         if self.w_bias.shape != (1, self.output_dim):
@@ -165,24 +213,37 @@ class ReservoirNode(mdp.Node):
             exception_str += 'Input dim: ' + str(self.input_dim) + ', output dim: ' + str(self.output_dim) + '. '
             exception_str += 'Shape of w_bias: ' + str(self.w_bias.shape)
             raise mdp.NodeException(exception_str)
+        # end if
 
         # Initialize reservoir weight matrix
         if self.w_initial is None:
-            if self.w_sparsity == None:
+            if self.w_sparsity is None:
                 self.w = mdp.numx.random.randn(self.output_dim, self.output_dim)
                 # scale it to spectral radius
             else:
-				# Create sparse W
-                self.w = mdp.numx.random.choice([0.0,1.0],(self.output_dim, self.output_dim), p = [1.0-self.w_sparsity,self.w_sparsity])
+                # Create sparse W
+                self.w = mdp.numx.random.choice([0.0, 1.0], (self.output_dim, self.output_dim), p=[1.0-self.w_sparsity, self.w_sparsity])
                 self.w[self.w == 1] = mdp.numx.random.rand(len(self.w[self.w == 1]))
-                
+
+                # Use sparse matrix if needed
+                if self.use_sparse_matrix:
+                    self.w = sp.csr_matrix(self.w)
+                # end if
+            # end if
+
+            # Modify spectral radius
             self.w *= self.spectral_radius / Oger.utils.get_spectral_radius(self.w)
         else:
             if callable(self.w_initial):
                 self.w = self.w_initial(self.output_dim) # If it is a function, call it
             else:
                 self.w = self.w_initial.copy()   # else just copy it
+            # end if
             self.w *= self.spectral_radius / Oger.utils.get_spectral_radius(self.w)
+        # end if
+
+        # Debug info on W_bias
+        logging.debug(u"Matrix W initialized with shape {}".format(self.w.shape))
         
         # Check if dimensions of the weight matrix match the dimensions of the node inputs and outputs
         if self.w.shape != (self.output_dim, self.output_dim):
@@ -190,20 +251,25 @@ class ReservoirNode(mdp.Node):
             exception_str += 'Output dim: ' + str(self.output_dim) + '. '
             exception_str += 'Shape of w: ' + str(self.w_in.shape)
             raise mdp.NodeException(exception_str)
+        # end if
         
         # Initial state
-        if self.set_initial_state == False:
+        if not self.set_initial_state:
             self.initial_state = mdp.numx.zeros((1, self.output_dim))
         else:
             self.initial_state = np.array([self.my_initial_state])
-        
+        # end if
+
+        # Init states
         self.states = mdp.numx.zeros((1, self.output_dim))
 
+        # Node is initialized
         self._is_initialized = True
-
+    # end initialize
 
     def _get_supported_dtypes(self):
         return ['float32', 'float64']
+    # end _get_supperted_dtypes
 
     def _execute(self, x):
         """ Executes simulation with input vector x.
@@ -211,17 +277,20 @@ class ReservoirNode(mdp.Node):
         # Check if the weight matrices are intialized, otherwise create them
         if not self._is_initialized:
             self.initialize()
+        # end if
 
         # Set the initial state of the reservoir
         # if self.reset_states is true, initialize to zero,
         # otherwise initialize to the last time-step of the previous execute call (for freerun)
         if self.reset_states:
-            if self.set_initial_state == False:
+            if not self.set_initial_state:
                 self.initial_state = mdp.numx.zeros((1, self.output_dim))
             else:
                 self.initial_state = np.array([self.my_initial_state])
+            # end if
         else:
             self.initial_state = mdp.numx.atleast_2d(self.states[-1, :])
+        # end if
 
         steps = x.shape[0]
         states = []
@@ -245,14 +314,21 @@ class ReservoirNode(mdp.Node):
         
         # Return the whole state matrix except the initial state
         return self.states
+    # end _execute
 
     def _post_update_hook(self, states, input, timestep):
         """ Hook which gets executed after the state update equation for every timestep. Do not use this to change the state of the 
             reservoir (e.g. to train internal weights) if you want to use parallellization - use the TrainableReservoirNode in that case.
         """
         pass
+    # end _post_update_hook
+
+# end ReservoirNode
 
 
+#########################################
+# LeakyReservoirNode
+#########################################
 class LeakyReservoirNode(ReservoirNode):
     """Reservoir node with leaky integrator neurons (a first-order low-pass filter added to the output of a standard neuron). 
     """
