@@ -4,6 +4,7 @@ import numpy as np
 import collections
 import scipy.sparse as sp
 import matplotlib.cm as cm
+import sys
 import logging
 try:
     import cudamat as cm
@@ -227,6 +228,7 @@ class ReservoirNode(mdp.Node):
 
                 # Use sparse matrix if needed
                 if self.use_sparse_matrix:
+                    self.logger.debug(u"Transforming W to sparse matrix representation")
                     self.w = sp.csr_matrix(self.w)
                 # end if
             # end if
@@ -307,16 +309,22 @@ class ReservoirNode(mdp.Node):
 
         # Non-linear function
         nonlinear_function_pointer = self.nonlin_func
-
+        print(u"compute state")
         # Loop over the input data and compute the reservoir states
         for n in range(steps):
+            print(n)
             if type(x) is sp.csr_matrix:
                 if not type(self.w_in) is sp.csr_matrix:
                     states[n + 1, :] = nonlinear_function_pointer(
                         mdp.numx.dot(self.w, states[n, :]) + mdp.numx.dot(self.w_in, x[n, :].transpose()) + self.w_bias)
                 else:
-                    states[n + 1, :] = nonlinear_function_pointer(
-                        mdp.numx.dot(self.w, states[n, :]) + self.w_in.multiply(x[n, :].transpose()) + self.w_bias)
+                    # W_in * x_n
+                    w_in_x = self.w_in * x[n, :].transpose()
+                    w_in_x = np.array(w_in_x.toarray())
+                    w_in_x.shape = w_in_x.shape[0]
+
+                    # W * s_n + W_n * x_n + w_bias
+                    states[n + 1, :] = nonlinear_function_pointer(self.w * states[n, :] + w_in_x + self.w_bias)
                 # end if
             else:
                 states[n + 1, :] = nonlinear_function_pointer(
