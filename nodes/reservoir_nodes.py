@@ -311,7 +311,6 @@ class ReservoirNode(mdp.Node):
         nonlinear_function_pointer = self.nonlin_func
 
         # Loop over the input data and compute the reservoir states
-        print(datetime.now())
         for n in range(steps):
             if type(x) is sp.csr_matrix:
                 if not type(self.w_in) is sp.csr_matrix:
@@ -337,7 +336,6 @@ class ReservoirNode(mdp.Node):
             # end if
             self._post_update_hook(states, x, n)
         # end for
-        print(datetime.now())
 
         # Save the state for re-initialization in case reset_states = False
         self.states = states[1:, :]

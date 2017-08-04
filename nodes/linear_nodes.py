@@ -63,34 +63,51 @@ class RidgeRegressionNode(mdp.nodes.LinearRegressionNode):
         self._tlen += x.shape[0]
     # end _train
 
+    # Stop the training and compute W_output
     def _stop_training(self):
+        """
+        Stop the training and compute W_output
+        """
         try:
             if self.use_pinv:
                 invfun = mdp.utils.pinv
             else:
                 invfun = mdp.utils.inv
+            # end if
 
             if self.ridge_param > 0:
                 lmda = self.ridge_param
             else:
                 lmda = self.eq_noise_var ** 2 * self._tlen
-	    
-            inv_xTx = invfun(self._xTx + lmda * mdp.numx.eye(self._input_dim + self.with_bias))
+            # end if
 
+            # Inverse matrix xTx
+            inv_xTx = invfun(self._xTx + lmda * mdp.numx.eye(self._input_dim + self.with_bias))
         except mdp.numx_linalg.LinAlgError, exception:
             errstr = (str(exception) +
                       "\n Input data may be redundant (i.e., some of the " +
                       "variables may be linearly dependent).")
             raise mdp.NodeException(errstr)
-		
+        # end try
+
+        # Compute W_output
         self.beta = mdp.utils.mult(inv_xTx, self._xTy)
-        #self.beta = mdp.numx.linalg.solve(self._xTx + lmda * mdp.numx.eye(self._input_dim + 1), self._xTy)
+        # self.beta = mdp.numx.linalg.solve(self._xTx + lmda * mdp.numx.eye(self._input_dim + 1), self._xTy)
+    # end _stop_training
         
     def _execute(self, x):
+        """
+        Execute the node
+        :param x:
+        :return:
+        """
         if self.with_bias:
             x = self._add_constant(x)
         output = mdp.utils.mult(x, self.beta)
         return output
+    # end _execute
+
+# end RidgeRegressionNode
 
 class ParallelLinearRegressionNode(mdp.parallel.ParallelExtensionNode, mdp.nodes.LinearRegressionNode):
     """Parallel extension for the LinearRegressionNode and all its derived classes
