@@ -1,6 +1,9 @@
 import mdp.nodes
 import mdp.utils
 import mdp.parallel
+import scipy.sparse as sp
+from datetime import datetime
+
 
 class RidgeRegressionNode(mdp.nodes.LinearRegressionNode):
     """Ridge Regression node. Extends the LinearRegressionNode and adds an additional
@@ -12,13 +15,16 @@ class RidgeRegressionNode(mdp.nodes.LinearRegressionNode):
     is set such that a regularization equal to a given added noise variance is
     achieved. Note that setting the ridge_param has precedence to the eq_noise_var.
     """
+
+    # Constructor
     def __init__(self, ridge_param=0, eq_noise_var=0, with_bias=True, use_pinv=False, input_dim=None, output_dim=None, dtype=None):
         super(RidgeRegressionNode, self).__init__(input_dim=input_dim, output_dim=output_dim, with_bias=with_bias, use_pinv=use_pinv, dtype=dtype)
 
         self.ridge_param = ridge_param
         self.eq_noise_var = eq_noise_var
         self.with_bias = with_bias
-        
+
+    # Train the node
     def _train(self, x, y):
         """
         **Additional input arguments**
@@ -33,16 +39,29 @@ class RidgeRegressionNode(mdp.nodes.LinearRegressionNode):
                 x_size = self._input_dim + 1
             else:
                 x_size = self._input_dim
+            # end if
             self._xTx = mdp.numx.zeros((x_size, x_size), self._dtype)
             self._xTy = mdp.numx.zeros((x_size, self._output_dim), self._dtype)
+        # end if
 
+        # Add bias
         if self.with_bias:
             x = self._add_constant(x)
+        # end if
         
-        # update internal variables
+        # Compute x^T * x (x = reservoir's states)
         self._xTx += mdp.utils.mult(x.T, x)
-        self._xTy += mdp.utils.mult(x.T, y)
+
+        # Compute x^T * y (y = target outputs)
+        # Y is a sparse matrix or not?
+        if type(y) is sp.csr_matrix:
+            self._xTy += x.T * y
+        else:
+            self._xTy += mdp.utils.mult(x.T, y)
+        # end if
+
         self._tlen += x.shape[0]
+    # end _train
 
     def _stop_training(self):
         try:

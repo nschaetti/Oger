@@ -4,7 +4,7 @@ import numpy as np
 import collections
 import scipy.sparse as sp
 import matplotlib.cm as cm
-import sys
+from datetime import datetime
 import logging
 try:
     import cudamat as cm
@@ -311,11 +311,17 @@ class ReservoirNode(mdp.Node):
         nonlinear_function_pointer = self.nonlin_func
 
         # Loop over the input data and compute the reservoir states
+        print(datetime.now())
         for n in range(steps):
             if type(x) is sp.csr_matrix:
                 if not type(self.w_in) is sp.csr_matrix:
+                    # W_in * x_n
+                    w_in_x = self.w_in * x[n, :].transpose()
+                    w_in_x.shape = w_in_x.shape[0]
+
+                    # W * s_n + W_n * x_n + w_bias
                     states[n + 1, :] = nonlinear_function_pointer(
-                        mdp.numx.dot(self.w, states[n, :]) + mdp.numx.dot(self.w_in, x[n, :].transpose()) + self.w_bias)
+                        mdp.numx.dot(self.w, states[n, :]) + w_in_x + self.w_bias)
                 else:
                     # W_in * x_n
                     w_in_x = self.w_in * x[n, :].transpose()
@@ -331,6 +337,7 @@ class ReservoirNode(mdp.Node):
             # end if
             self._post_update_hook(states, x, n)
         # end for
+        print(datetime.now())
 
         # Save the state for re-initialization in case reset_states = False
         self.states = states[1:, :]
