@@ -3,6 +3,7 @@ import mdp.utils
 import mdp.parallel
 import scipy.sparse as sp
 from datetime import datetime
+import logging
 
 
 class RidgeRegressionNode(mdp.nodes.LinearRegressionNode):
@@ -34,6 +35,7 @@ class RidgeRegressionNode(mdp.nodes.LinearRegressionNode):
           output to the input x's.
         """
         # initialize internal vars if necessary
+        logging.getLogger(name=u"Oger").info(u"Initialize internal vars if necessary")
         if self._xTx is None:
             if self.with_bias:
                 x_size = self._input_dim + 1
@@ -50,10 +52,12 @@ class RidgeRegressionNode(mdp.nodes.LinearRegressionNode):
         # end if
         
         # Compute x^T * x (x = reservoir's states)
+        logging.getLogger(name=u"Oger").info(u"Compute x^T * x (xTx)")
         self._xTx += mdp.utils.mult(x.T, x)
 
         # Compute x^T * y (y = target outputs)
         # Y is a sparse matrix or not?
+        logging.getLogger(name=u"Oger").info(u"Compute x^T * y (xTy)")
         if type(y) is sp.csr_matrix:
             self._xTy += x.T * y
         else:
@@ -82,6 +86,7 @@ class RidgeRegressionNode(mdp.nodes.LinearRegressionNode):
             # end if
 
             # Inverse matrix xTx
+            logging.getLogger(name=u"Oger").info(u"Inverse matrix xTx")
             inv_xTx = invfun(self._xTx + lmda * mdp.numx.eye(self._input_dim + self.with_bias))
         except mdp.numx_linalg.LinAlgError, exception:
             errstr = (str(exception) +
@@ -91,6 +96,7 @@ class RidgeRegressionNode(mdp.nodes.LinearRegressionNode):
         # end try
 
         # Compute W_output
+        logging.getLogger(name=u"Oger").info(u"Compute W_output")
         self.beta = mdp.utils.mult(inv_xTx, self._xTy)
         # self.beta = mdp.numx.linalg.solve(self._xTx + lmda * mdp.numx.eye(self._input_dim + 1), self._xTy)
     # end _stop_training
