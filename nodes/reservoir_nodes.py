@@ -312,28 +312,29 @@ class ReservoirNode(mdp.Node):
 
         # Loop over the input data and compute the reservoir states
         for n in range(steps):
-            if type(x) is sp.csr_matrix:
-                if not type(self.w_in) is sp.csr_matrix:
-                    # W_in * x_n
-                    w_in_x = self.w_in * x[n, :].transpose()
-                    w_in_x.shape = w_in_x.shape[0]
-
-                    # W * s_n + W_n * x_n + w_bias
-                    states[n + 1, :] = nonlinear_function_pointer(
-                        mdp.numx.dot(self.w, states[n, :]) + w_in_x + self.w_bias)
-                else:
-                    # W_in * x_n
-                    w_in_x = self.w_in * x[n, :].transpose()
-                    w_in_x = np.array(w_in_x.toarray())
-                    w_in_x.shape = w_in_x.shape[0]
-
-                    # W * s_n + W_n * x_n + w_bias
-                    states[n + 1, :] = nonlinear_function_pointer(self.w * states[n, :] + w_in_x + self.w_bias)
-                # end if
+            # W_in * x_n
+            if type(self.w_in) is sp.csr_matrix and type(x) is sp.csr_matrix:
+                w_in_x = self.w_in * x[n, :].transpose()
+                w_in_x = np.array(w_in_x.toarray())
+                w_in_x.shape = w_in_x.shape[0]
+            elif type(x) is sp.csr_matrix:
+                w_in_x = self.w_in * x[n, :].transpose()
+                w_in_x.shape = w_in_x.shape[0]
             else:
-                states[n + 1, :] = nonlinear_function_pointer(
-                    mdp.numx.dot(self.w, states[n, :]) + mdp.numx.dot(self.w_in, x[n, :]) + self.w_bias)
+                w_in_x = mdp.numx.dot(self.w_in, x[n, :])
             # end if
+
+            # W * states_n
+            if type(self.w) is sp.csr_matrix:
+                w_states = self.w * states[n, :]
+            else:
+                w_states = mdp.numx.dot(self.w, states[n, :])
+            # end if
+
+            # W * s_n + W_n * x_n + w_bias
+            states[n + 1, :] = nonlinear_function_pointer(w_states + w_in_x + self.w_bias)
+
+            # Post update hook
             self._post_update_hook(states, x, n)
         # end for
 
