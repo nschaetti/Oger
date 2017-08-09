@@ -108,19 +108,42 @@ class ReservoirNode(mdp.Node):
     # Override the standard output_dim getter and setter property, 
     # to enable changing the output_dim (i.e. the number
     # of neurons) afterwards during optimization
-    def get_output_dim(self): 
+    def get_output_dim(self):
+        """
+        Override the standard output_dim getter and setter property,
+        to enable changing the output_dim (i.e. the number
+        of neurons) afterwards during optimization
+        :return: Output dimension
+        """
         return self._output_dim
     # end get_output_dim
 
-    def set_output_dim(self, value): 
+    # Set output dimension
+    def set_output_dim(self, value):
+        """
+        Set output dimension
+        :param value: Output dimension
+        """
         self._output_dim = value
+    # end set_output_dim
+
     output_dim = property(get_output_dim, set_output_dim, doc="Output dimensions")
 
+    # Is the layer trainable?
     def is_trainable(self):
+        """
+        Is the layer trainable?
+        :return: True of False
+        """
         return False
     # end is_trainable
 
+    # Is the layer invertible?
     def is_invertible(self):
+        """
+        Is the layer invertible?
+        :return: True or False
+        """
         return False
     # end is_invertible
 
@@ -346,10 +369,14 @@ class ReservoirNode(mdp.Node):
     # end _execute
 
     def _post_update_hook(self, states, input, timestep):
-        """ Hook which gets executed after the state update equation for every timestep. Do not use this to change the state of the 
-            reservoir (e.g. to train internal weights) if you want to use parallellization - use the TrainableReservoirNode in that case.
         """
-        pass
+        Hook which gets executed after the state update equation for every timestep. Do not use this to change the state of the
+        reservoir (e.g. to train internal weights) if you want to use parallellization - use the TrainableReservoirNode in that case.
+        :param states: Reservoir's states
+        :param input: Input signal
+        :param timestep: Timestep
+        :return:
+        """
     # end _post_update_hook
 
 # end ReservoirNode
@@ -363,7 +390,8 @@ class LeakyReservoirNode(ReservoirNode):
     """
 
     def __init__(self, leak_rate=1.0, *args, **kwargs):
-        """Initializes and constructs a random reservoir with leaky-integrator neurons.
+        """
+        Initializes and constructs a random reservoir with leaky-integrator neurons.
            Parameters are:
                 - input_dim: input dimensionality
                 - output_dim: output_dimensionality, i.e. reservoir size
@@ -373,24 +401,43 @@ class LeakyReservoirNode(ReservoirNode):
                 - spectral_radius: scaling of the reservoir weight matrix, default value: 0.9
                 - leak_rate: if 1 it is a standard neuron, lower values give slower dynamics
 
-           Weight matrices are either generated randomly or passed at construction time.  If w, w_in or w_bias are not given in the constructor, they are created randomly:
+        Weight matrices are either generated randomly or passed at construction time.  If w, w_in or w_bias are not given in the constructor, they are created randomly:
                 - input matrix : input_scaling * uniform weights in [-1, 1]
                 - bias matrix :  bias_scaling * uniform weights in [-1, 1]
                 - reservoir matrix: gaussian weights rescaled to the desired spectral radius
 
-           If w, w_in or w_bias were given as a numpy array or a function, these will be used as initialization instead.
+        If w, w_in or w_bias were given as a numpy array or a function, these will be used as initialization instead.
+        :param leak_rate: Leak rate, if 1 it is a standard neuron, lower values give slower dynamics
+        :param args:
+        :param kwargs:
         """
         super(LeakyReservoirNode, self).__init__(*args, **kwargs)
 
         # Leak rate, if 1 it is a standard neuron, lower values give slower dynamics 
         self.leak_rate = leak_rate
+    # end __init__
 
+    # Executed after each timestep
     def _post_update_hook(self, states, input, timestep):
+        """
+        Hook which gets executed after the state update equation for every timestep. Do not use this to change the state of the
+        reservoir (e.g. to train internal weights) if you want to use parallellization - use the TrainableReservoirNode in that case.
+        :param states: Reservoir's states
+        :param input: Input signal
+        :param timestep: Timestep
+        :return:
+        """
         states[timestep + 1, :] = (1 - self.leak_rate) * states[timestep, :] + self.leak_rate * states[timestep + 1, :]
+    # end _post_update_hook
+
+# end LeakyReservoirNode
+
 
 class BandpassReservoirNode(ReservoirNode):
-    """Reservoir node with bandpass neurons (an Nth-order band-pass filter added to the output of a standard neuron). 
     """
+    Reservoir node with bandpass neurons (an Nth-order band-pass filter added to the output of a standard neuron).
+    """
+
     def __init__(self, b=mdp.numx.array([[1]]), a=mdp.numx.array([[0]]), *args, **kwargs):
         """Initializes and constructs a random reservoir with band-pass neurons.
            Parameters are:

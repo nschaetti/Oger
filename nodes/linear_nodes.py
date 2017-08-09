@@ -6,6 +6,7 @@ from datetime import datetime
 import logging
 
 
+# Ridge Regression node
 class RidgeRegressionNode(mdp.nodes.LinearRegressionNode):
     """Ridge Regression node. Extends the LinearRegressionNode and adds an additional
     ridge_param parameter.
