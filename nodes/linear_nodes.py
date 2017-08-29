@@ -116,6 +116,7 @@ class RidgeRegressionNode(mdp.nodes.LinearRegressionNode):
 
 # end RidgeRegressionNode
 
+
 class ParallelLinearRegressionNode(mdp.parallel.ParallelExtensionNode, mdp.nodes.LinearRegressionNode):
     """Parallel extension for the LinearRegressionNode and all its derived classes
     (eg. RidgeRegressionNode).
