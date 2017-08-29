@@ -36,7 +36,7 @@ class RidgeRegressionNode(mdp.nodes.LinearRegressionNode):
           output to the input x's.
         """
         # initialize internal vars if necessary
-        logging.getLogger(name=u"Oger").info(u"Initialize internal vars if necessary")
+        logging.getLogger(name=u"Oger").debug(u"Initialize internal vars if necessary")
         if self._xTx is None:
             if self.with_bias:
                 x_size = self._input_dim + 1
@@ -53,12 +53,12 @@ class RidgeRegressionNode(mdp.nodes.LinearRegressionNode):
         # end if
         
         # Compute x^T * x (x = reservoir's states)
-        logging.getLogger(name=u"Oger").info(u"Compute x^T * x (xTx)")
+        logging.getLogger(name=u"Oger").debug(u"Compute x^T * x (xTx)")
         self._xTx += mdp.utils.mult(x.T, x)
 
         # Compute x^T * y (y = target outputs)
         # Y is a sparse matrix or not?
-        logging.getLogger(name=u"Oger").info(u"Compute x^T * y (xTy)")
+        logging.getLogger(name=u"Oger").debug(u"Compute x^T * y (xTy)")
         if type(y) is sp.csr_matrix:
             self._xTy += x.T * y
         else:
