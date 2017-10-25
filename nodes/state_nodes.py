@@ -15,12 +15,11 @@ class JoinedStatesNode(mdp.Node):
     """
 
     # Constructor
-    def __init__(self, input_dim=100, joined_size=1, jump=1, dtype='float64'):
+    def __init__(self, input_dim=100, joined_size=1, dtype='float64'):
         super(JoinedStatesNode, self).__init__(input_dim=input_dim, dtype=dtype)
 
         # Variables
         self._joined_size = joined_size
-        self._jump = jump
         self._reservoir_size = input_dim
     # end __init__
 
@@ -41,19 +40,29 @@ class JoinedStatesNode(mdp.Node):
         :return:
         """
         # If not overlap, just reshape
-        if self._jump == self._joined_size:
-            output_length = int(x.shape[0] / self._joined_size)
-            x.shape = (output_length, self._joined_size * self._reservoir_size)
+        if self._joined_size == 1:
             return x
         else:
-            states = np.array([])
-            for i in np.arange(0, x.shape[0]-self._jump, self._jump):
-                state = x[i:i+self._joined_size, :].flatten()
-                if states.size == 0:
-                    states = states
+            # Create empty space for joined states
+            states = np.zeros((x.shape[0], self._joined_size * self._reservoir_size))
+
+            # Go through all initial states
+            for i in np.arange(0, x.shape[0]):
+                # Position
+                start_pos = i - self._joined_size + 1
+                end_pos = i
+
+                # Under zero
+                if start_pos < 0:
+                    state = np.zeros(self._joined_size * self._reservoir_size)
+                    size = (end_pos+1) * self._reservoir_size
+                    state[-size:] = x[0:end_pos+1, :].flatten()
                 else:
-                    states = np.vstack((states, state))
+                    state = x[start_pos:end_pos+1, :].flatten()
                 # end if
+
+                # Add to new states
+                states[i, :] = state
             # end for
             return states
         # end if
