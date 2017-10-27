@@ -19,7 +19,7 @@ class JoinedStatesNode(mdp.Node):
         super(JoinedStatesNode, self).__init__(input_dim=input_dim, dtype=dtype)
 
         # Variables
-        self._joined_size = joined_size
+        self._joined_size = int(joined_size)
         self._reservoir_size = input_dim
     # end __init__
 
@@ -238,47 +238,6 @@ class MixedFourStateNode(mdp.Node):
 
         # Retourne le dernier état de chaque images
         return np.hstack((first, second, third, last))
-
-
-#
-# CLASS JoinedStatesNode
-# Un noeud qui fait l'union de plusieurs états du réservoir afin de les traiter ensembles
-#
-class JoinedStatesNode(mdp.Node):
-    ##############################################################
-    # Constructeur
-    ##############################################################
-    def __init__(self, mnist_space=0, image_size=28, input_dim=100, dtype='float64'):
-        super(JoinedStatesNode, self).__init__(input_dim=input_dim, dtype=dtype)
-
-        # Variables
-        self.imagesSize = image_size
-        self.interImagesSpace = mnist_space
-        self.entrySize = self.imagesSize + self.interImagesSpace
-        self.reservoirSize = input_dim
-
-    ##############################################################
-    # On entraîne pas ce noeud
-    ##############################################################
-    def is_trainable(self):
-        return False
-
-    ##############################################################
-    # Exécution du noeud
-    ##############################################################
-    def _execute(self, x):
-        # Nombre d'éléments à la sortie
-        nbOut = int(x.shape[0] / self.entrySize)
-
-        # Resultat
-        # y = np.zeros((nbOut, self.reservoirSize*self.entrySize))
-
-        # Pour chaque digit traité en entrée
-        # for digit_pos in np.arange(0, nbOut):
-        #	y[digit_pos,:] = np.flatten(x[self.entrySize*digit_pos:self.entrySize*digit_pos+self.entrySize,:])
-        x.shape = (nbOut, self.reservoirSize * self.entrySize)
-
-        return x
 
 
 #
