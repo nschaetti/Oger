@@ -15,12 +15,13 @@ class JoinedStatesNode(mdp.Node):
     """
 
     # Constructor
-    def __init__(self, input_dim=100, joined_size=1, dtype='float64'):
+    def __init__(self, input_dim=100, joined_size=1, fill_before=False, dtype='float64'):
         super(JoinedStatesNode, self).__init__(input_dim=input_dim, dtype=dtype)
 
         # Variables
         self._joined_size = int(joined_size)
         self._reservoir_size = input_dim
+        self._fill_before = fill_before
     # end __init__
 
     # This node is not trainable
@@ -44,7 +45,12 @@ class JoinedStatesNode(mdp.Node):
             return x
         else:
             # Create empty space for joined states
-            states = np.zeros((x.shape[0], self._joined_size * self._reservoir_size))
+            if self._fill_before:
+                n_before = 1
+            else:
+                n_before = 0
+            # end if
+            states = np.zeros((x.shape[0] + n_before, self._joined_size * self._reservoir_size))
 
             # Go through all initial states
             for i in np.arange(0, x.shape[0]):
@@ -62,7 +68,7 @@ class JoinedStatesNode(mdp.Node):
                 # end if
 
                 # Add to new states
-                states[i, :] = state
+                states[i+n_before, :] = state
             # end for
             return states
         # end if
