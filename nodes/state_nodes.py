@@ -42,7 +42,11 @@ class JoinedStatesNode(mdp.Node):
         """
         # If not overlap, just reshape
         if self._joined_size == 1:
-            return x
+            if not self._fill_before:
+                return x
+            else:
+                return np.vstack((np.zeros(self._reservoir_size), x))
+            # end if
         else:
             # Create empty space for joined states
             if self._fill_before:
