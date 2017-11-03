@@ -343,6 +343,9 @@ class ReservoirNode(mdp.Node):
             elif type(x) is sp.csr_matrix:
                 w_in_x = self.w_in * x[n, :].transpose()
                 w_in_x.shape = w_in_x.shape[0]
+            elif type(self.w_in) is sp.csr_matrix:
+                w_in_x = self.w_in * x[n, :]
+                w_in_x.shape = w_in_x.shape[0]
             else:
                 w_in_x = mdp.numx.dot(self.w_in, x[n, :])
             # end if
