@@ -8,11 +8,10 @@ import logging
 
 # Ridge Regression node
 class RidgeRegressionNode(mdp.nodes.LinearRegressionNode):
-    """Ridge Regression node. Extends the LinearRegressionNode and adds an additional
+    """
+    Ridge Regression node. Extends the LinearRegressionNode and adds an additional
     ridge_param parameter.
-    
     Solves the following equation: (AA^T+\lambdaI)^-(1)A^TB
-    
     It is also possible to define an equivalent noise variance: the ridge parameter
     is set such that a regularization equal to a given added noise variance is
     achieved. Note that setting the ridge_param has precedence to the eq_noise_var.
@@ -20,11 +19,21 @@ class RidgeRegressionNode(mdp.nodes.LinearRegressionNode):
 
     # Constructor
     def __init__(self, ridge_param=0, eq_noise_var=0, with_bias=True, use_pinv=False, input_dim=None, output_dim=None, dtype=None):
+        """
+        Constructor
+        :param ridge_param:
+        :param eq_noise_var:
+        :param with_bias:
+        :param use_pinv:
+        :param input_dim:
+        :param output_dim:
+        :param dtype:
+        """
         super(RidgeRegressionNode, self).__init__(input_dim=input_dim, output_dim=output_dim, with_bias=with_bias, use_pinv=use_pinv, dtype=dtype)
-
         self.ridge_param = ridge_param
         self.eq_noise_var = eq_noise_var
         self.with_bias = with_bias
+    # end __init__
 
     # Train the node
     def _train(self, x, y):
@@ -36,7 +45,6 @@ class RidgeRegressionNode(mdp.nodes.LinearRegressionNode):
           output to the input x's.
         """
         # initialize internal vars if necessary
-        logging.getLogger(name=u"Oger").debug(u"Initialize internal vars if necessary")
         if self._xTx is None:
             if self.with_bias:
                 x_size = self._input_dim + 1
@@ -53,12 +61,10 @@ class RidgeRegressionNode(mdp.nodes.LinearRegressionNode):
         # end if
         
         # Compute x^T * x (x = reservoir's states)
-        logging.getLogger(name=u"Oger").debug(u"Compute x^T * x (xTx)")
         self._xTx += mdp.utils.mult(x.T, x)
 
         # Compute x^T * y (y = target outputs)
         # Y is a sparse matrix or not?
-        logging.getLogger(name=u"Oger").debug(u"Compute x^T * y (xTy)")
         if type(y) is sp.csr_matrix:
             self._xTy += x.T * y
         else:
@@ -87,7 +93,6 @@ class RidgeRegressionNode(mdp.nodes.LinearRegressionNode):
             # end if
 
             # Inverse matrix xTx
-            logging.getLogger(name=u"Oger").info(u"Inverse matrix xTx")
             inv_xTx = invfun(self._xTx + lmda * mdp.numx.eye(self._input_dim + self.with_bias))
         except mdp.numx_linalg.LinAlgError, exception:
             errstr = (str(exception) +
@@ -97,7 +102,6 @@ class RidgeRegressionNode(mdp.nodes.LinearRegressionNode):
         # end try
 
         # Compute W_output
-        logging.getLogger(name=u"Oger").info(u"Compute W_output")
         self.beta = mdp.utils.mult(inv_xTx, self._xTy)
         # self.beta = mdp.numx.linalg.solve(self._xTx + lmda * mdp.numx.eye(self._input_dim + 1), self._xTy)
     # end _stop_training
@@ -117,14 +121,28 @@ class RidgeRegressionNode(mdp.nodes.LinearRegressionNode):
 # end RidgeRegressionNode
 
 
-class ParallelLinearRegressionNode(mdp.parallel.ParallelExtensionNode, mdp.nodes.LinearRegressionNode):
-    """Parallel extension for the LinearRegressionNode and all its derived classes
-    (eg. RidgeRegressionNode).
+# Parallel ridge regression node
+class ParallelRidgeRegressionNode(mdp.parallel.ParallelExtensionNode, RidgeRegressionNode):
     """
-    def _fork(self):
-        return self._default_fork()
+    Parallel ridge regression node
+    """
 
+    # Fork
+    def _fork(self):
+        """
+        Fork
+        :return:
+        """
+        return self._default_fork()
+    # end _fork
+
+    # Join the thread
     def _join(self, forked_node):
+        """
+        Join the thread
+        :param forked_node:
+        :return:
+        """
         if self._xTx is None:
             self._xTx = forked_node._xTx
             self._xTy = forked_node._xTy
@@ -133,3 +151,44 @@ class ParallelLinearRegressionNode(mdp.parallel.ParallelExtensionNode, mdp.nodes
             self._xTx += forked_node._xTx
             self._xTy += forked_node._xTy
             self._tlen += forked_node._tlen
+        # end if
+    # end _join
+
+# end ParallelRidgeRegressionNode
+
+
+# Parallel linear regression node
+class ParallelLinearRegressionNode(mdp.parallel.ParallelExtensionNode, mdp.nodes.LinearRegressionNode):
+    """
+    Parallel extension for the LinearRegressionNode and all its derived classes
+    (eg. RidgeRegressionNode).
+    """
+
+    # Fork
+    def _fork(self):
+        """
+        Fork
+        :return:
+        """
+        return self._default_fork()
+    # end _fork
+
+    # Join the thead
+    def _join(self, forked_node):
+        """
+        Join the thread
+        :param forked_node:
+        :return:
+        """
+        if self._xTx is None:
+            self._xTx = forked_node._xTx
+            self._xTy = forked_node._xTy
+            self._tlen = forked_node._tlen
+        else:
+            self._xTx += forked_node._xTx
+            self._xTy += forked_node._xTy
+            self._tlen += forked_node._tlen
+        # end if
+    # end _join
+
+# end ParallelLinearRegressionNode
