@@ -114,35 +114,43 @@ class LastTwoStateNode(mdp.Node):
         return np.hstack((last1, last2))
 
 
-#
-# CLASS LastStateNode
-# Un noeud qui renvoi seulement le dernier états du réservoir pour chaque images traitées
-#
+# A node which returns only the last state of the reservoir
 class LastStateNode(mdp.Node):
-    ##############################################################
-    # Constructeur
-    ##############################################################
-    def __init__(self, mnist_space=0, image_size=28, input_dim=100, dtype='float64'):
+    """
+    A node which returns only the last state of the reservoir
+    """
+
+    # Constructor
+    def __init__(self, input_dim=100, dtype='float64'):
+        """
+        Constructor
+        :param input_dim:
+        :param dtype:
+        """
         super(LastStateNode, self).__init__(input_dim=input_dim, dtype=dtype)
+    # end __init__
 
-        # Variables
-        self.imagesSize = image_size
-        self.interImagesSpace = mnist_space
-        self.entrySize = self.imagesSize + self.interImagesSpace
-        self.reservoirSize = input_dim
-
-    ##############################################################
-    # On entraîne pas ce noeud
-    ##############################################################
+    # Cannot train this node
     def is_trainable(self):
+        """
+        Cannot train this node
+        :return:
+        """
         return False
+    # end is_trainable
 
-    ##############################################################
-    # Exécution du noeud
-    ##############################################################
+    # Execute this node
     def _execute(self, x):
+        """
+        Execute this node
+        :param x:
+        :return:
+        """
         # Retourne le dernier état de chaque images
-        return x[np.arange(self.entrySize - 1, x.shape[0] + 1, self.entrySize), :]
+        return x[-1, :]
+    # end _execute
+
+# end LastStateNode
 
 
 #
